@@ -13,11 +13,22 @@ apis:
   series:
     api_host: "<HOST_API_1>"
     api_key: "<API_KEY_1>"
+  subtitles:
+    api_host: "<HOST_API_2>"
+    api_key: "<API_KEY_2>"
 
 services:
   - type: "Radarr"
+    name: "radarr"
     commands: ["movie", "m"]
     api: "movie"
+    addons: ["bazarr"]
   - type: "Sonarr"
+    name: "sonarr"
     commands: ["series", "s"]
     api: "series"
+    addons: ["bazarr"]
+  - type: "Bazarr"
+    name: "bazarr"
+    commands: ["subtitles", "sub"]
+    api: "subtitles"
