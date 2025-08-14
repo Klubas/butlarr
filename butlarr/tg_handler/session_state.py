@@ -6,6 +6,8 @@ def get_chat_id(update):
         return update.callback_query.message.chat_id
     return update.message.chat_id
 
+def addon_session_state_key_fn(self=None, update=None):
+    return str('addon')
 
 def default_session_state_key_fn(self, update):
     return str(self.commands[0]) + str(get_chat_id(update))

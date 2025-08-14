@@ -15,6 +15,7 @@ from ..tg_handler.auth import (
 )
 from ..tg_handler.session_state import (
     sessionState,
+    addon_session_state_key_fn
 )
 from ..tg_handler.keyboard import Button, keyboard
 
@@ -80,6 +81,7 @@ class Bazarr(Addon):
                 description = f"[Score: {item['score']}]"
                 description += f" {item['release_info'][0]}"
                 description = description[0:1024]
+                logger.debug('Before download button')
                 rows_menu.append(
                     [
                         Button(
@@ -148,6 +150,7 @@ class Bazarr(Addon):
         item=None,
         options={},
     ):
+        logger.debug('subtitle download started')
         assert item, "Missing required arg! You need to provide a item!"
 
         if service == ArrVariant.RADARR:
@@ -179,12 +182,16 @@ class Bazarr(Addon):
             )
             return False
 
-        return self.request(
+        response = self.request(
             method,
             action=Action.POST,
             params=params,
             raw=True
         )
+        logger.debug('subtitle download finished')
+        
+        return response
+        
 
     def create_message(
             self, state: State, full_redraw=False, allow_edit=False
@@ -216,23 +223,28 @@ class Bazarr(Addon):
         )
 
     @repaint
-    @sessionState(init=True)
+    @sessionState(key_fn=addon_session_state_key_fn, init=True)
     @callback(cmds=["list"])
     @authorized(min_auth_level=AuthLevels.USER)
     async def clbk_list(self, update, context, args, **kwargs):
-        state = State(
-            items=[],
-            index=0,
-            media_id=args[3],
-            menu="list",
-            parent_menu=args[2],
-            parent_service=find_service_by_name(args[1])
-        )
+
+        parent_service = find_service_by_name(args[1])
+        media_id = args[3] if len(args) > 3 else None
 
         items = self.search(
-            arr_variant=state.parent_service.arr_variant, id=state.media_id)
-        state = replace(state, items=items)
-        print(items)
+            arr_variant=parent_service.arr_variant, id=media_id)
+
+        state = State(
+            items=items,
+            index=0,
+            media_id=media_id,
+            menu="list",
+            parent_menu=args[2],
+            parent_service=parent_service,
+        )
+
+        # Here i'm creating a state for the addon, for now its genric and won't really be usable as is
+        self.session_db.add_session_entry(addon_session_state_key_fn(), state)
 
         auth_level = get_auth_level_from_message(self.db, update)
         allow_edit = auth_level >= AuthLevels.USER.value
@@ -242,9 +254,10 @@ class Bazarr(Addon):
 
     @repaint
     @callback(cmds=["download"])
-    @sessionState(clear=True)
+    @sessionState(key_fn=addon_session_state_key_fn)
     @authorized(min_auth_level=AuthLevels.USER)
     async def clbk_add(self, update, context, args, state):
+        logger.debug('Before download')
         state = replace(
             state,
             menu="success",
@@ -252,7 +265,7 @@ class Bazarr(Addon):
 
         result = self.download(
             id=state.media_id,
-            service=state.arr_variant,
+            service=state.parent_service.arr_variant,
             item=state.items[state.index]
         )
 
